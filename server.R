@@ -11,8 +11,8 @@ server <- function(input, output) {
   # n <- input$nsamp
   # p <- input$prop
   
-  output$distPlot <- renderPlot({
-    p_hat_dist <- map_df(seq_len(B), function(i) {
+  p_hat_dist <- reactive({
+      map_df(seq_len(B), function(i) {
       simulated_dataset <- rbinom(input$nsamp, 
                                   size = 1, 
                                   prob = input$prop)
@@ -39,13 +39,15 @@ server <- function(input, output) {
         cp_ub
       )
     })
+    })
+  
+  output$distPlot <- renderPlot({
+    # cov_prob <- p_hat_dist %>% 
+    #   summarise(approx_cov = mean(p >= approx_lb & p <= approx_ub),
+    #             cont_cov = mean(p >= cont_lb & p <= cont_ub),
+    #             cp_cov = mean(p >= cp_lb & p <= cp_ub))
     
-    cov_prob <- p_hat_dist %>% 
-      summarise(approx_cov = mean(p >= approx_lb & p <= approx_ub),
-                cont_cov = mean(p >= cont_lb & p <= cont_ub),
-                cp_cov = mean(p >= cp_lb & p <= cp_ub))
-    
-    max_count <- p_hat_dist %$% 
+    max_count <- p_hat_dist() %$% 
       max(table(cut(p_hat,
                     seq(min(p_hat),
                         max(p_hat),
@@ -53,7 +55,7 @@ server <- function(input, output) {
                     include.lowest = TRUE)))
     
     # Pick instance closer to truth, so that CI align with empirical...
-    conf_int <- arrange(p_hat_dist, abs(p_hat - mean(p_hat)))[1,,drop=FALSE] %>% 
+    conf_int <- arrange(p_hat_dist(), abs(p_hat - mean(p_hat)))[1,,drop=FALSE] %>% 
       select(-p_hat) %>% 
       gather(Type, Value) %>% 
       mutate(Type = stringr::str_replace_all(Type, "_(l|u)b", "")) %>% 
@@ -68,7 +70,7 @@ server <- function(input, output) {
         Type == "cp" ~ as.numeric(max_count)
       ))
     
-    p_hat_dist %>% 
+    p_hat_dist() %>% 
       ggplot(aes(p_hat)) + 
       geom_histogram() +
       geom_ribbon(data = conf_int, 
@@ -80,5 +82,15 @@ server <- function(input, output) {
                  linetype = 2) + 
       theme(legend.position = 'top') + # coord_cartesian(xlim = c(0,1)) +
       xlab("Distribution of proportions")
+  })
+  
+  output$covTab <- renderTable({
+    p_hat_dist() %>%
+      summarise(approx_cov = mean(input$prop >= approx_lb & input$prop <= approx_ub),
+                cont_cov = mean(input$prop >= cont_lb & input$prop <= cont_ub),
+                cp_cov = mean(input$prop >= cp_lb & input$prop <= cp_ub)) %>% 
+      gather(Type, Coverage) %>% 
+      mutate(Coverage = paste(round(100*Coverage, 1), "%"),
+             Type = stringr::str_replace_all(Type, "_cov", ""))
   })
 }

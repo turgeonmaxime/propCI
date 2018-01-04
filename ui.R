@@ -4,7 +4,7 @@ library(shiny)
 ui <- fluidPage(
   
   # Application title
-  titlePanel("Confidence Interval for proportion"),
+  titlePanel("Confidence Interval for Proportion"),
   
   # Sidebar with slider inputs for sample size of true proportion
   sidebarLayout(

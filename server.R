@@ -11,6 +11,11 @@ server <- function(input, output) {
   # n <- input$nsamp
   # p <- input$prop
   
+  bounds_xlim <- reactive({
+    binom.test(round(50*input$prop),50,
+               conf.level = 1 - 1/B)$conf.int
+  })
+  
   p_hat_dist <- reactive({
       map_df(seq_len(B), function(i) {
       simulated_dataset <- rbinom(input$nsamp, 
@@ -68,6 +73,11 @@ server <- function(input, output) {
         Type == "approx" ~ max_count/3,
         Type == "cont" ~ 2*max_count/3,
         Type == "cp" ~ as.numeric(max_count)
+      )) %>% 
+      mutate(Type = case_when(
+        Type == "approx" ~ "Normal Approx.",
+        Type == "cont" ~ "Normal Approx. w/ continuity correction",
+        Type == "cp" ~ "Clopper-Pearson"
       ))
     
     p_hat_dist() %>% 
@@ -81,7 +91,7 @@ server <- function(input, output) {
                  aes(xintercept = Value, colour = Type),
                  linetype = 2) + 
       theme(legend.position = 'top') + # coord_cartesian(xlim = c(0,1)) +
-      xlab("Distribution of proportions")
+      xlab("Distribution of proportions") + coord_cartesian(xlim = bounds_xlim())
   })
   
   output$covTab <- renderTable({
@@ -91,6 +101,11 @@ server <- function(input, output) {
                 cp_cov = mean(input$prop >= cp_lb & input$prop <= cp_ub)) %>% 
       gather(Type, Coverage) %>% 
       mutate(Coverage = paste(round(100*Coverage, 1), "%"),
-             Type = stringr::str_replace_all(Type, "_cov", ""))
+             Type = stringr::str_replace_all(Type, "_cov", "")) %>% 
+      mutate(Type = case_when(
+        Type == "approx" ~ "Normal Approx.",
+        Type == "cont" ~ "Normal Approx. w/ continuity correction",
+        Type == "cp" ~ "Clopper-Pearson"
+      ))
   })
 }
